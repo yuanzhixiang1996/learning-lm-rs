@@ -71,7 +71,34 @@ pub fn masked_softmax(y: &mut Tensor<f32>) {
 }
 
 pub fn rms_norm(y: &mut Tensor<f32>, x: &Tensor<f32>, w: &Tensor<f32>, epsilon: f32) {
-    todo!("实现 rms_norm，计算前做一些必要的检查会帮助你后续调试")
+
+    assert_eq!(y.shape(), x.shape(), "Output and input tensors must have the same shape");
+    assert_eq!(w.size(), x.shape()[x.shape().len() - 1], "Weight tensor must have the same size as the last dimension of input tensor");
+
+    let n = x.shape()[x.shape().len() - 1]; // 最后一个维度的大小
+    let batch_size = x.size() / n; // 批量大小
+
+    let _x = x.data();
+    let _w = w.data();
+    let _y = unsafe { y.data_mut() };
+
+    // 计算 RMS Norm
+    for i in 0..batch_size {
+        // 计算均方根
+        let mut sum_sq = 0.0;
+        let line = i * n;
+        for j in 0..n {
+            sum_sq += _x[line + j].powi(2);
+        }
+        let rms = (sum_sq / n as f32 + epsilon).sqrt();
+
+        // 应用 normalization 和权重
+        for j in 0..n {
+            let index = line + j;
+            _y[index]  = (_x[index] / rms) * _w[j];
+        }
+    }
+
 }
 
 // y = sigmoid(x) * x * y

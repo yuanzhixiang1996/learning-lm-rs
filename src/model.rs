@@ -8,6 +8,8 @@ use crate::params::LLamaParams;
 use crate::tensor::Tensor;
 use safetensors::SafeTensors;
 use std::path::Path;
+use crate::operators::{matmul_transb, rms_norm, silu};
+
 pub struct Llama<T> {
     vocab: usize,           // vocab size
     n_layers: usize,        // number of layers
@@ -132,11 +134,11 @@ impl Llama<f32> {
         top_p: f32,
         top_k: u32,
         temperature: f32,
-    ) -> Vec<u32>{
+    ) -> Vec<u32> {
         let mut result = Vec::<u32>::new();
-        
+
         todo!("实现文本生成");
-        
+
         result
     }
 }
@@ -167,7 +169,25 @@ fn mlp(
     rms_w: &Tensor<f32>,
     eps: f32,
 ) {
-    todo!("Implement mlp");
+    // Step 1: RMS normalization
+    rms_norm(hidden_states, residual, rms_w, eps);
+
+    // Step 2: Calculate gate and up projections
+    matmul_transb(gate, 0.0, hidden_states, w_gate, 1.0);
+    matmul_transb(up, 0.0, hidden_states, w_up, 1.0);
+
+    // Step 3: Apply SiLU activation to gate
+    silu(up, gate);
+
+    // Step 4: Element-wise multiplication of gate and up
+    matmul_transb(hidden_states, 0.0, up, w_down, 1.0);
+
+    // Step 5: Residual connection
+    for i in 0..residual.size() {
+        unsafe {
+            *residual.data_mut().get_unchecked_mut(i) += hidden_states.data().get_unchecked(i);
+        }
+    }
 }
 
 #[test]
@@ -200,11 +220,11 @@ pub fn test_mlp() {
         &Tensor::<f32>::new(
             vec![
                 1.3429964, 1.7290739, 1.3429964, 1.7290739, 1.3429964, 1.7290739, 1.3429964,
-                1.7290739
+                1.7290739,
             ],
-            &vec![seq_len, d]
+            &vec![seq_len, d],
         ),
-        1e-3
+        1e-3,
     ))
 }
 
@@ -235,5 +255,4 @@ pub fn test_load_safetensors() {
     assert!(float_eq(&model.params.wk[1].data()[100], &-0.21386719, 1e-6));
     assert!(float_eq(&model.params.wv[0].data()[100], &0.041015625, 1e-6));
     assert!(float_eq(&model.params.wo[0].data()[100], &0.01965332, 1e-6));
-
 }

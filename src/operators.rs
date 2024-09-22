@@ -119,7 +119,35 @@ pub fn silu(y: &mut Tensor<f32>, x: &Tensor<f32>) {
 // C = beta * C + alpha * A @ B^T
 // hint: You don't need to do an explicit transpose of B
 pub fn matmul_transb(c: &mut Tensor<f32>, beta: f32, a: &Tensor<f32>, b: &Tensor<f32>, alpha: f32) {
-    todo!("实现 matmul_transb，计算前做一些必要的检查会帮助你后续调试");
+    let a_shape = a.shape();
+    let b_shape = b.shape();
+    let c_shape = c.shape();
+
+    assert_eq!(a_shape.len(), 2, "Matrix A should be 2-dimensional");
+    assert_eq!(b_shape.len(), 2, "Matrix B should be 2-dimensional");
+    assert_eq!(c_shape.len(), 2, "Matrix C should be 2-dimensional");
+
+    let (m, k) = (a_shape[0], a_shape[1]);
+    let (n, kb) = (b_shape[0], b_shape[1]);
+
+    assert_eq!(k, kb, "Inner dimensions of A and B^T must match");
+    assert_eq!(c_shape[0], m, "Number of rows in C must match number of rows in A");
+    assert_eq!(c_shape[1], n, "Number of columns in C must match number of rows in B");
+
+    let a_data = a.data();
+    let b_data = b.data();
+    let c_data = unsafe { c.data_mut() };
+
+    for i in 0..m {
+        for j in 0..n {
+            let mut sum = 0.0;
+            for l in 0..k {
+                sum += a_data[i * k + l] * b_data[j * k + l];
+            }
+            let idx = i * n + j;
+            c_data[idx] = beta * c_data[idx] + alpha * sum;
+        }
+    }
 }
 
 // Dot product of two tensors (treated as vectors)
